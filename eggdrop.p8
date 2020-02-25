@@ -1,147 +1,160 @@
 pico-8 cartridge // http://www.pico-8.com
-version 1.0
+version 1.1
 __lua__
---title
---author
+--eggdrop
+--shwenhog
+
+--todo neaten global variables
+------ add menu screen
+------ add high score board (local)
+------ add bombs
+------ add different game modes (timed, lives+bombs)
+state = {}
+state.time = 0
+state.gravity = 2
+state.eggs = {}
+state.timeup = 1800
+
+--Egg sprite is y1-y7; x1-x6
+--Ground sprite is 8x8
+boundary = {}
+boundary.left = 7
+boundary.right = 119
+boundary.top = -8
+boundary.bottom = 112
+
+sprite = {}
+sprite.player = 1
+sprite.egg = 32
+sprite.eggLR = 1
+
+player = {}
+player.x = 60
+player.y = 112
+player.direction = right
+player.score = 0
+player.sprt = sprite.player
+player.flip = false
 
 function _init()
-	game_over=false
-	t=0
-	g=2
-	ground=114
-	eggs={}
-	make_player()
-	pdir="r"
 end
 
 function _update()
- t+=1
-	move_player()
- make_egg()
- for i=1,#eggs do
-	 move_egg(eggs[i])
- end
+  if( state.time <= state.timeup ) then
+    state.time += 1
+    state.gravity += 0.001
+    movePlayer()
+    handleEggs()
+  end
 end
 
 function _draw()
-	cls()
-	draw_stage()
-	draw_player()
-	for i=1,#eggs do
-	 draw_egg(eggs[i])
- end
-	if(game_over) then
-		print("game over",58,58,7)
-		print("eggs:"..p.score,68,68,7)
-	else
-		print("eggs:"..p.score,1,1,7)
-		print("t:"..t,0,10,7)
-	end
-end
-
-function draw_stage()
- map(0,0,0,0,127,127,0)
-end
-
-
-function make_player()
-	p = {}
-	p.x=60
-	p.y=112
-	p.idle=1
-	p.m1=2
-	p.m2=3
-	p.dead=4
- p.direction=r
-	p.score=0
-end
-
-function move_player()
---0 left, 1 right, 2 up, 3 down
-	if(btn(0)) then
-	 pdir="l"
-	 if(p.x>0) p.x-=2
- end
-	if(btn(1)) then
-	 pdir="r"
-	 if(p.x<120) p.x+=2
- end
-	--if(btn(2)) p.y-=2
-	--if(btn(3)) p.y+=2
-end
-
-function draw_player()
- if(game_over) then
- 	spr(p.dead,p.x,p.y)
- else
-  if(pdir=="r") then
-			spr(p.idle,p.x,p.y)
-		else
-		 spr(p.idle+4,p.x,p.y)
-		end
-	end
-end
-
-function make_egg()
-	if(t%25==0) then
-		xpos=flr(rnd(107))+10
-		local e={}
-		e.x=xpos
-		e.y=-8
-		e.sprite=32
-		e.stage=0
-		e.broken=false
-		add(eggs,e)
-	end
-end
-
-function move_egg(e)
- --make egg fall until it breaks
- if(e!=nil and e.y<112) then
-  e.y+=g
-  --collect unbroken egg
-  --egg at right y?
-  if(e.y+7>=p.y) then
-   --egg at right x?
-   --[e][c] and [c][e]
-   if(e.x+6 >= p.x and p.x+8 >= e.x) then 
-    del(eggs,e)
-    p.score+=1
-    sfx(5,1)
-   end
+  cls()
+  drawStage()
+  spr(player.sprt, player.x, player.y, 1, 1, player.flip)
+  foreach(state.eggs, drawEgg)
+  if( state.time <= state.timeup ) then
+    print("eggs:"..player.score,1,1,7)
+    print("t:"..state.time,0,10,7)
+  else
+    --Each char is 4w 6h
+    cls()
+    drawStage()
+    spr(player.sprt, player.x, player.y, 1, 1, player.flip)
+    print("time's up!", (127/2 - 10*2), (127/2 - 6*2))
+    print("you collected", (127/2 - 13*2), (127/2 - 6))
+    print(player.score.." eggs", (127/2 - 7*2), (127/2))
   end
-	else
-  if(e!=nil and e.broken==false) then
-   e.broken=true
-   sfx(06,2)
-  end
- end
 end
 
-function draw_egg(e)
- if(e!=nil) then
-  if(e.y<112) then
-		 spr(e.sprite,e.x,e.y)
-		else
-		 e.stage+=1
-		 if(e!=nil and e.stage>35) then
-		  del(eggs,e)
-		 elseif(e.stage>25) then
-		  spr(e.sprite+6,e.x,e.y)
-		 elseif(e.stage>15) then
-		  spr(e.sprite+5,e.x,e.y)
-		 elseif(e.stage>4) then
-		  spr(e.sprite+4,e.x,e.y)
-		 elseif(e.stage>3) then
-		  spr(e.sprite+3,e.x,e.y)
-		 elseif(e.stage>2) then
-		  spr(e.sprite+2,e.x,e.y)
-	  elseif(e.stage>0) then
-		  spr(e.sprite+1,e.x,e.y)
-	  end
-  end
-	end
+function drawMenu()
+
+
+function drawStage()
+  map(0,0,0,0,127,127,0)
 end
+
+function spriteAnimator(n)
+  local i = 0
+  i += n
+  return i
+end
+
+function movePlayer()
+  --btn0 is left, btn1 is right
+  if( btn(0) ) then
+    player.flip = true
+    player.x -= 2
+    player.sprt += spriteAnimator(1)
+    if( player.sprt > 3 ) then
+      player.sprt = 2
+    end
+  elseif( btn(1) ) then
+    player.flip = false
+    player.x += 2
+    player.sprt += spriteAnimator(1)
+    if( player.sprt > 3 ) then
+      player.sprt = 2
+    end
+  else
+    player.sprt = 1
+  end
+end
+
+function handleEggs()
+  makeEgg() --Try and make a new egg
+  foreach(state.eggs, moveEgg) --Move eggs
+ end
+
+function makeEgg()
+  if( state.time%25 == 0 ) then
+    rndX = flr( rnd(boundary.right-boundary.left) + boundary.left )
+    local newEgg = {}
+    newEgg.x = rndX
+    newEgg.y = boundary.top
+    newEgg.sprt = sprite.egg
+    newEgg.timer = 0
+    newEgg.broken = false
+    add(state.eggs, newEgg)
+  end
+end
+
+function moveEgg(egg)
+  --Egg falls until it reaches the ground
+  if( egg.y < boundary.bottom ) then
+    egg.y += state.gravity
+    --Check if player can collect egg
+    local lowY = egg.y + 7
+    local lowX = egg.x + sprite.eggLR
+    local highX = egg.x + (7-sprite.eggLR)
+
+    if( (player.y <= lowY) and (player.x+7 >= lowX) and (player.x <= highX) ) then
+      del(state.eggs, egg)
+      sfx(5,2)
+      player.score += 1
+    end
+  elseif( egg.broken == false ) then
+    egg.broken = true
+    sfx(6,3)
+  end
+end
+
+function drawEgg(egg)
+  if( egg.y < boundary.bottom ) then
+    spr(egg.sprt, egg.x, egg.y)
+  else
+    egg.sprt += spriteAnimator(1)
+    if( egg.sprt >= 38 ) then
+      del(state.eggs, egg)
+    else
+      spr(egg.sprt, egg.x, egg.y)
+    end
+  end
+end
+
+
+-->8
+--new tabe test
 __gfx__
 00000000000088000000880000008800000000000088000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000075700000757000007570000088000757000000000000000000000000000000000000000000000000000000000000000000000000000000000000
