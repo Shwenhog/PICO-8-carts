@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 1
+version 1.0
 __lua__
 --title
 --author
