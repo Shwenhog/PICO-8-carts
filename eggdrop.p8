@@ -1,169 +1,193 @@
 pico-8 cartridge // http://www.pico-8.com
-version 1.1
+version 1.2
 __lua__
 --eggdrop
 --shwenhog
+--since 0 is L, flip should be for R. all sprites should be L
 
---todo neaten global variables
------- add menu screen
------- add high score board (local)
------- add bombs
------- add different game modes (timed, lives+bombs)
-state = {}
-state.time = 0
-state.gravity = 2
-state.eggs = {}
-state.timeup = 1800
-
---Egg sprite is y1-y7; x1-x6
---Ground sprite is 8x8
-boundary = {}
-boundary.left = 7
-boundary.right = 119
-boundary.top = -8
-boundary.bottom = 112
-
-sprite = {}
-sprite.player = 1
-sprite.egg = 32
-sprite.eggLR = 1
-
-player = {}
-player.x = 60
-player.y = 112
-player.direction = right
-player.score = 0
-player.sprt = sprite.player
-player.flip = false
+--[[ tab 0
+    initialisation
+]]------------------------------
 
 function _init()
+  init_state()
+  init_boundary()
+  init_player()
+  init_eggs()
+  init_sprites()
 end
 
+function init_state()
+  state = {}
+  state.time = 0
+  state.time_end = 1200
+  state.gravity = 2.2
+  state.speedup = 0.001
+  state.egg_interval = 25
+end
+
+--boundary for eggs
+function init_boundary()
+  boundary = {}
+  boundary.l = 7
+  boundary.r = 119
+  boundary.u = -8
+  boundary.d = 112
+end
+
+function init_player()
+  player = {}
+  player.x = 60
+  player.y = 112
+  player.scr = 0
+  player.tmr = 0
+  player.flp = false
+end
+
+function init_eggs()
+  eggs = {}
+  eggs.coll = {}
+end
+
+--set sprites
+function init_sprites()
+  player.sprt = 1
+  player.sprt_dflt = 1
+  player.sprt_animf = 2
+  player.sprt_animl = 3
+  player.sprt_win = 4
+
+  eggs.sprt_dflt = 32
+  eggs.sprt_animf = 33
+  eggs.sprt_animl = 38
+end
+
+-->8
+--[[ tab 1
+    update
+    draw
+    player
+]]------------------------------
+
 function _update()
-  if( state.time <= state.timeup ) then
+  if (state.time <= state.time_end) then
     state.time += 1
-    state.gravity += 0.001
-    movePlayer()
-    handleEggs()
+    state.gravity += state.speedup
+    move_player()
+    make_egg()
+    foreach(eggs, move_egg)
   end
 end
 
 function _draw()
-  cls()
-  drawStage()
-  spr(player.sprt, player.x, player.y, 1, 1, player.flip)
-  foreach(state.eggs, drawEgg)
-  if( state.time <= state.timeup ) then
-    print("eggs:"..player.score,1,1,7)
-    print("t:"..state.time,0,10,7)
+  map(0,0,0,0,127,127,0) --draw stage
+  if (state.time <= state.time_end) then
+    map(0,0,0,0,127,127,0)
+    spr(player.sprt, player.x, player.y, 1, 1, player.flp)
+    foreach(eggs, draw_egg)
   else
-    --Each char is 4w 6h
-    cls()
-    drawStage()
-    spr(player.sprt, player.x, player.y, 1, 1, player.flip)
+    spr(player.sprt_win, player.x, player.y, 1, 1, player.flp)
     print("time's up!", (127/2 - 10*2), (127/2 - 6*2))
     print("you collected", (127/2 - 13*2), (127/2 - 6))
-    print(player.score.." eggs", (127/2 - 7*2), (127/2))
+    print(player.scr.." eggs", (127/2 - 7*2), (127/2))
   end
 end
 
-function drawMenu()
-
-
-function drawStage()
-  map(0,0,0,0,127,127,0)
-end
-
-function spriteAnimator(n)
-  local i = 0
-  i += n
-  return i
-end
-
-function movePlayer()
-  --btn0 is left, btn1 is right
-  if( btn(0) ) then
-    player.flip = true
-    player.x -= 2
-    player.sprt += spriteAnimator(1)
-    if( player.sprt > 3 ) then
-      player.sprt = 2
-    end
-  elseif( btn(1) ) then
-    player.flip = false
-    player.x += 2
-    player.sprt += spriteAnimator(1)
-    if( player.sprt > 3 ) then
-      player.sprt = 2
-    end
+--actor, interval
+function anim_sprite(a, i)
+  if (a.tmr > i) then
+    a.tmr = 0
+    a.sprt += 1
+    if (a.sprt > a.sprt_animl) a.sprt = a.sprt_animf
   else
-    player.sprt = 1
+    a.tmr += 1
   end
 end
 
-function handleEggs()
-  makeEgg() --Try and make a new egg
-  foreach(state.eggs, moveEgg) --Move eggs
- end
-
-function makeEgg()
-  if( state.time%25 == 0 ) then
-    rndX = flr( rnd(boundary.right-boundary.left) + boundary.left )
-    local newEgg = {}
-    newEgg.x = rndX
-    newEgg.y = boundary.top
-    newEgg.sprt = sprite.egg
-    newEgg.timer = 0
-    newEgg.broken = false
-    add(state.eggs, newEgg)
+function move_player()
+  --0123 : LRUD
+  if (btn(0)) then
+    player.flp = false
+    player.x -= 2
+    anim_sprite(player, 1)
+  elseif (btn(1)) then
+    player.flp = true
+    player.x += 2
+    anim_sprite(player, 1)
+  else
+    player.sprt = player.sprt_dflt
   end
 end
 
-function moveEgg(egg)
-  --Egg falls until it reaches the ground
-  if( egg.y < boundary.bottom ) then
+-->8
+--[[ tab 2
+    eggs
+]]------------------------------
+
+function make_egg()
+  if (state.time%state.egg_interval == 0) then
+    rndX = flr( rnd(boundary.r-boundary.l) + boundary.l )
+    local egg = {}
+    egg.x = rndX
+    egg.y = boundary.u
+    egg.sprt = eggs.sprt_dflt
+    egg.sprt_animf = eggs.sprt_animf
+    egg.sprt_animl = eggs.sprt_animl
+    egg.tmr = 0
+    egg.broken = false
+    add(eggs, egg)
+  end
+end
+
+function move_egg(egg)
+  --L1R1U1B0 -> L1R6T1B7
+  --egg falls until it reaches the ground
+  if (egg.y < boundary.d) then
     egg.y += state.gravity
-    --Check if player can collect egg
-    local lowY = egg.y + 7
-    local lowX = egg.x + sprite.eggLR
-    local highX = egg.x + (7-sprite.eggLR)
+    --check if player can collect egg
+    local lowY = egg.y + 7 --B7
+    local lowX = egg.x + 1 --L1
+    local highX = egg.x + 6 --R6
 
-    if( (player.y <= lowY) and (player.x+7 >= lowX) and (player.x <= highX) ) then
-      del(state.eggs, egg)
-      sfx(5,2)
-      player.score += 1
+    if (player.y <= lowY and
+        player.x+7 >= lowX and
+        player.x <= highX ) then
+      del(eggs, egg)
+      sfx(5, 2)
+      player.scr += 1
     end
-  elseif( egg.broken == false ) then
+  elseif(not egg.broken) then
     egg.broken = true
-    sfx(6,3)
+    sfx(6, 3)
   end
 end
 
-function drawEgg(egg)
-  if( egg.y < boundary.bottom ) then
+function draw_egg(egg)
+  if(not egg.broken) then
     spr(egg.sprt, egg.x, egg.y)
   else
-    egg.sprt += spriteAnimator(1)
-    if( egg.sprt >= 38 ) then
-      del(state.eggs, egg)
+    if (egg.tmr%2==0) then
+      egg.sprt += 1
+      if (egg.sprt > 38) then
+        del(eggs, egg)
+      else
+        spr(egg.sprt, egg.x, egg.y)
+      end
     else
       spr(egg.sprt, egg.x, egg.y)
     end
   end
 end
 
-
--->8
---new tabe test
 __gfx__
-00000000000088000000880000008800000000000088000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000075700000757000007570000088000757000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700000077990000779900007799000075709977000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000777777807777778077777780000077990877777700000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000777777707777777077777770777777800777777700000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700777777707777777077777770777777700777777700000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000077777700777777007777770777777700777777000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000a0a0000000a00000a00000777777000a0a00000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000008800000088000000880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000075700000757000007570000008800000088000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00700700997700009977000099770000075700000757000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000770000877777708777777087777779977000099c7000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077000077777770777777707777777087777770877777700000000000000000000000000000000000000000000000000000000000000000000000000000000
+00700700077777770777777707777777077777770777777700000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000077777700777777007777770077777770777777700000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000a0a00000a000000000a000077777700777777000000000000000000000000000000000000000000000000000000000000000000000000000000000
 33333333333333331111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 33333333333333331111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 34333333333333331111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -180,6 +204,11 @@ __gfx__
 07777770077797770777999007779990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 07777770077977777779779777997997000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00777700009997709999997997999979079997900099970000099000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00ee0ee0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00eeeee0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000eee00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 1212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 1212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -206,8 +235,8 @@ __sfx__
 010a0000340511830018400185001860018700180001a00024000181001a100000002d0002f0002d0002f0002f000300002f00030000000000000000000000000000000000000000000000000000000000000000
 010800003074330100301003020030300303003040030200305003050030400303003020030100300003000030600306003060030600306003060030600306003060030600306003060030600306000000000000
 __music__
-01 02404244
-00 03404344
-02 04404344
-00 40424344
+00 01024042
+00 41034043
+00 02044043
+00 41404243
 
