@@ -8,3 +8,5 @@ Notes:
 ##### Eggdrop (TBD)
 - game modes
 - settings
+- multiplayer
+- jumping and collision
