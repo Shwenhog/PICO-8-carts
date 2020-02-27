@@ -1,9 +1,15 @@
 pico-8 cartridge // http://www.pico-8.com
-version 18
+version 1.2
 __lua__
 --eggdrop
 --shwenhog
---since 0 is L, flip should be for R. all sprites should be L
+--[[ todo
+    complete menu functionality
+    add local score board
+    add bomb game mode
+    fix music
+    try adding walking sfx
+]]------------------------------
 
 --[[ tab 0
     initialisation
